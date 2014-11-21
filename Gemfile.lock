@@ -1,0 +1,16 @@
+PATH
+  remote: .
+  specs:
+    delayed_job_rake_daemon (0.0.1)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    minitest (5.4.3)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  delayed_job_rake_daemon!
+  minitest

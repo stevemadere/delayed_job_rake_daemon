@@ -1,0 +1,86 @@
+#!/bin/bash
+# Starts rake jobs:work in the background or stops it.
+#
+# This script had to be created because the F*ing delayed_job
+# script does not work.  A bad interaction between the pg and koala gems causes
+# postgresql connection to become FUBAR.
+# see this for a detailed explanation of the problem:
+# http://stackoverflow.com/questions/26515765/weird-interaction-of-delayed-job-daemons-koala-pg
+
+PID_DIR="tmp/pids"
+mkdir -p "$PID_DIR"
+LOG_DIR="log"
+mkdir -p "$LOG_DIR"
+PID_FILE="$PID_DIR/job_worker.pid"
+LOG_FILE="$LOG_DIR/job_worker.log"
+BASE_COMMAND='bundle exec rake jobs:work'
+
+# used when you want to wait for something that is not your child process
+wait_for_death_of() {
+  watched_pid="$1"
+  while kill -0 "$watched_pid" 2>/dev/null
+  do
+    echo "waiting for pid $watched_pid to finish"
+    sleep 1
+  done
+  return 0
+}
+
+start_it() {
+   if [ -e "$PID_FILE" ] && kill -0 `cat $PID_FILE` ; then
+     echo "already running"
+     echo "use restart if that is what you want"
+     return 0
+   fi
+   echo "starting $BASE_COMMAND"
+   nohup $BASE_COMMAND >> "$LOG_FILE" 2>&1 &
+   daemon_pid=$!
+   echo $daemon_pid > "$PID_FILE"
+}
+
+stop_it() {
+   echo "stopping.."
+   daemon_pid=`cat $PID_FILE`
+   kill "$daemon_pid"
+   if wait_for_death_of "$daemon_pid"
+   then
+     rm -f "$PID_FILE"
+   fi
+}
+
+restart_it() {
+   stop_it
+   start_it
+}
+
+show_status() {
+  if [ -e "$PID_FILE" ] ; then
+    if kill -0 `cat $PID_FILE` ; then
+      echo "running"
+    else
+      echo "died unnatural death:"
+      echo "see $LOG_FILE for details"
+    fi
+  else
+      echo "not running"
+  fi
+}
+
+action="$1"
+case "$action" in
+  start)
+    start_it
+    ;;
+  stop)
+    stop_it
+    ;;
+  restart)
+    restart_it
+    ;;
+  status)
+    show_status
+    ;;
+  *)
+    echo "usage: $(basename $0) start|stop|restart|status" > /dev/stderr
+    exit 1
+esac
