@@ -13,7 +13,7 @@ LOG_DIR="log"
 mkdir -p "$LOG_DIR"
 PID_FILE="$PID_DIR/job_worker.pid"
 LOG_FILE="$LOG_DIR/job_worker.log"
-BASE_COMMAND='bundle exec rake jobs:work'
+BASE_COMMAND='rake jobs:work'
 
 # used when you want to wait for something that is not your child process
 wait_for_death_of() {

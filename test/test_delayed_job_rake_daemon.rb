@@ -17,6 +17,8 @@ class FakeRakeEnv
     cleanup
   end
 
+  attr_reader :temp_dir
+
   def rake_running?
     return false unless File.exist?(running_indicator_file)
     rake_pid = IO.read(running_indicator_file).to_i
@@ -32,7 +34,6 @@ class FakeRakeEnv
 
   protected
 
-    attr_reader :temp_dir
 
     def fake_bin_dir
       Pathname.new(temp_dir).join('bin')
@@ -67,6 +68,7 @@ class FakeRakeEnv
 
     def cleanup
       ENV['PATH'] = @old_path
+      #puts "temp dir path is #{temp_dir}"
       FileUtils.remove_entry_secure(temp_dir)
     end
 
@@ -75,21 +77,33 @@ end
 describe "delayed_job_rake_daemon" do
 
   it "has a working FakeRakeEnv fixture" do
-    FakeRakeEnv.new do |env|
-      assert(!env.rake_running?)
+    FakeRakeEnv.new do |fre|
+      assert(!fre.rake_running?)
       if child_pid = Process.fork 
         sleep 1
-        was_running_before_killed = env.rake_running?
+        was_running_before_killed = fre.rake_running?
         Process.kill(9,child_pid)
         Process.waitpid(child_pid)
         assert(was_running_before_killed)
-        assert(!env.rake_running?)
+        assert(!fre.rake_running?)
       else
         Process.exec('rake junk')
       end
     end
   end
 
-
-
+  it "starts/stops the daemon" do
+    djrd = Pathname(__FILE__).dirname.join('..','bin','delayed_job_rake_daemon')
+    puts "djrd is #{djrd}"
+    assert(File.exists?(djrd))
+    FakeRakeEnv.new do |fre|
+      Dir.chdir(fre.temp_dir) do
+        system("#{djrd} start")
+        sleep 1
+        assert(fre.rake_running?)
+        system("#{djrd} stop")
+        assert(!fre.rake_running?)
+      end
+     end
+  end
 end
