@@ -37,7 +37,8 @@ namespace :delayed_job do
     on roles :worker do
       within release_path do
         with rails_env: fetch(:rails_env) do
-          execute :bundle, 'exec delayed_job_rake_daemon restart'
+          # specifying bundle exec is necessary to get rvm environment initialzed by capistrano-rvm
+          execute :bundle, 'exec', 'delayed_job_rake_daemon', 'restart'
         end
       end
     end
