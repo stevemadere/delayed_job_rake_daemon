@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env ruby
 # Starts rake jobs:work in the background or stops it.
 #
 # This script had to be created because the F*ing delayed_job
@@ -7,80 +7,110 @@
 # see this for a detailed explanation of the problem:
 # http://stackoverflow.com/questions/26515765/weird-interaction-of-delayed-job-daemons-koala-pg
 
-PID_DIR="tmp/pids"
-mkdir -p "$PID_DIR"
-LOG_DIR="log"
-mkdir -p "$LOG_DIR"
-PID_FILE="$PID_DIR/job_worker.pid"
-LOG_FILE="$LOG_DIR/job_worker.log"
-BASE_COMMAND='bundle exec rake jobs:work'
+
+require 'fileutils'
+
+$pid_dir="tmp/pids"
+$log_dir="log"
+FileUtils.mkdir_p $pid_dir
+FileUtils.mkdir_p $log_dir
+
+$pid_file="#{$pid_dir}/job_worker.pid"
+$log_file="#{$log_dir}/job_worker.log"
+
+$start_command='bundle exec rake jobs:work'
 
 # used when you want to wait for something that is not your child process
-wait_for_death_of() {
-  watched_pid="$1"
-  while kill -0 "$watched_pid" 2>/dev/null
-  do
-    echo "waiting for pid $watched_pid to finish"
-    sleep 1
-  done
-  return 0
-}
+def process_running?(pid)
+  Process.kill(0,pid)
+  return true
+rescue Errno::ESRCH
+  return false
+end
 
-start_it() {
-   if [ -e "$PID_FILE" ] && kill -0 `cat $PID_FILE` ; then
-     echo "already running"
-     echo "use restart if that is what you want"
-     return 0
-   fi
-   echo "starting $BASE_COMMAND"
-   nohup $BASE_COMMAND >> "$LOG_FILE" 2>&1 &
-   daemon_pid=$!
-   echo $daemon_pid > "$PID_FILE"
-}
+def wait_for_death_of(pid)
+  while process_running?(pid)
+    sleep 0.2
+  end
+  true
+end
 
-stop_it() {
-   echo "stopping.."
-   daemon_pid=`cat $PID_FILE`
-   kill "$daemon_pid"
-   if wait_for_death_of "$daemon_pid"
-   then
-     rm -f "$PID_FILE"
-   fi
-}
+def daemon_pid
+   if File.exists?($pid_file) 
+     return IO.read($pid_file).to_i
+   else
+     return nil
+   end
+end
 
-restart_it() {
+def start_it
+   pid = daemon_pid()
+   if pid && process_running?(pid)
+     STDERR.puts "already running"
+     STDERR.puts "use restart if that is what you want"
+     return false
+   end
+   STDERR.puts "starting #{$start_command}"
+   # shell equivalent
+   # nohup $start_command >> $log_file 2>&1 &
+   if pid = Process.fork
+     File.open($pid_file,'w') { |f| f.puts pid }
+   else
+     Signal.trap("HUP") do
+     end
+     $stdout.reopen($log_file,'a')
+     $stderr.reopen($stdout)
+     $stdout.puts("stdout")
+     $stderr.puts("stderr")
+     exec($start_command)
+   end
+   return true
+end
+
+def stop_it
+  pid = daemon_pid()
+  if pid
+    $stderr.puts "stopping.."
+    begin
+      Process.kill("TERM", pid) 
+    rescue Errno::ESRCH
+    end
+    if wait_for_death_of(pid)
+      File.unlink($pid_file)
+    end
+  end
+end
+
+def restart_it
    stop_it
    start_it
-}
+end
 
-show_status() {
-  if [ -e "$PID_FILE" ] ; then
-    if kill -0 `cat $PID_FILE` ; then
-      echo "running"
+def show_status
+  if pid = daemon_pid()
+    if process_running?(pid)
+      $stderr.puts "running"
     else
-      echo "died unnatural death:"
-      echo "see $LOG_FILE for details"
-    fi
+      $stderr.puts "died unnatural death:"
+      $stderr.puts "see #{$log_file} for details"
+    end
   else
-      echo "not running"
-  fi
-}
+      $stderr.puts "not running"
+  end
+end
 
-action="$1"
-case "$action" in
-  start)
-    start_it
-    ;;
-  stop)
-    stop_it
-    ;;
-  restart)
-    restart_it
-    ;;
-  status)
-    show_status
-    ;;
-  *)
-    echo "usage: $(basename $0) start|stop|restart|status" > /dev/stderr
-    exit 1
-esac
+action=ARGV[0]
+
+case action
+when 'start'
+  start_it
+when 'stop'
+  stop_it
+when 'restart'
+  restart_it
+when 'status'
+  show_status
+else
+  $stderr.puts "usage: delayed_job_rake_daemon start|stop|restart|status"
+  exit 1
+end
