@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
   s.email = 'steve@stevemadere.com'
   s.homepage = 'https://github.com/stevemadere/delayed_job_rake_daemon'
   s.license = 'MIT'
-  s.version = '0.0.2'
+  s.version = '0.0.3'
   s.authors = 'Steve Madere'
   s.files = Dir.glob('{lib}/**/*')
   s.executables = ['delayed_job_rake_daemon']
