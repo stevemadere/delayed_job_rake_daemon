@@ -1,4 +1,4 @@
-# Capistrano::DelayedJob
+# delayed_job_rake_daemon
 ==========
 
 Workaround for a nasty gem interaction bug in the DelayedJob job worker script.
