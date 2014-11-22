@@ -13,7 +13,7 @@ However, the script provided by DelayedJob to run in the background has unrecove
 See this for a detailed explanation of the problem:
 [http://stackoverflow.com/questions/26515765/weird-interaction-of-delayed-job-daemons-koala-pg]
 
-The admittedly hacky solution offered in this gem is to create a daemon runner/manager shell script which manages *rake jobs:work* running as a daemon.
+The admittedly hacky solution offered in this gem is to create a daemon runner/manager script which manages *rake jobs:work* running as a daemon.
 
 If you use a combination of the _pg_ and _koala_ gms in your delayed jobs,  you are very likely to need *delayed_job_rake_daemon*
 
@@ -49,6 +49,10 @@ namespace :deploy do
   after :finshing 'delayed_job:restart'
 end
 
+```
+You will also need to add the *:worker* role to some server.  e.g.:
+``` ruby
+role :worker, %w{deployer@jobworker.mydomain.com}
 ```
 
 
